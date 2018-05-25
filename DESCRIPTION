@@ -1,0 +1,11 @@
+Package: SMLM
+Type: Package
+Title: Tools for clustering and topoligical data analysis of single molecule localization microscopy (SMLM) datasets. 
+Version: 1.0
+Date: 2018-05-16
+Author: Jeremy Pike	
+Maintainer: Jeremy Pike <j.a.pike@bham.ac.uk>
+Description: Implements ToMaTo, DBCAN, Ripley K and Voronoi tesselation based cluster analysis. Persientent homology is also implented through TDA and the GHUDI library. Wrapper for C++ implentation of Topological Mode Analysis Tool (ToMaTo) clustering (https://geometrica.saclay.inria.fr/data/Steve.Oudot/clustering/). Makes use of ANN (A Library forApproximate Nearest Neighbor Searching). Is included.
+License: GPL (>= 2)
+Imports: Rcpp (>= 0.12.16)
+LinkingTo: Rcpp
