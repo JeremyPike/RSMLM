@@ -415,7 +415,7 @@ class Cluster : public Cluster_Base<Iterator>{
 			 
 		  } 
 		  else
-			  out.push_back(-1);
+			  out.push_back(0);
 		  
 	  }
   }
