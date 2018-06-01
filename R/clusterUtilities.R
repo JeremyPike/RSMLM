@@ -47,7 +47,7 @@ clusterDBSCAN <- function(coords, r, minPoints) {
   return(clusterIndices)
   
 }
-clusterVoronoi <- function(coords, maxTileArea) {
+clusterVoronoi <- function(coords, threshold) {
   
   if (sum(duplicatedxy(coords[, 1], coords[, 2])) > 0) {
     stop("Detection list should not contain duplicated points")
@@ -55,12 +55,22 @@ clusterVoronoi <- function(coords, maxTileArea) {
     numDetections <- dim(coords)[1]
     # compute veronoi tesselation
     vtess <- deldir(coords[, 1], coords[, 2])
-    # find tiles smaller than user specified max area
-    tileIndices <- vtess$summary$del.area <= maxTileArea
-   # tileIndicesDelete <- which(vtess$summary$del.area > maxTileArea)
+    tileAreas <- vtess$summary$dir.area
+   
+    
     # create igraph object from veronoi triangulation
     g <- make_empty_graph(n = numDetections, directed = FALSE)
     g <- add_edges(g, c(rbind(vtess$delsgs$ind1, vtess$delsgs$ind2)))
+    
+    # compute first rank density
+    density <- c()
+    neigh <- adjacent_vertices(g, seq(1, numDetections, by = 1))
+    for (i in 1 : numDetections) {
+      density[i] = (1 + length(neigh[[i]])) / (tileAreas[i] + sum(tileAreas[neigh[[i]]]))
+    }
+    # find tiles with density larger than threshold
+    tileIndices <- density > threshold
+    
     # delete tiles with area larger than specified maxiumum
     g <- delete_vertices(g, which(!tileIndices))
     # compute the connected components (clusters of the graph)
@@ -117,6 +127,14 @@ clusterRipley <- function(coords, r, threshold, ROIArea) {
     clusterIndices[filteredDetections] <- ccs$membership
   }
   return(clusterIndices)
+}
+
+tomatoDiagram <- function(coords, r) {
+  
+  # compute density using number of other detections within fixed search radius
+  density <- pointdensity(coords, r, type = "frequency")
+  diagram <- tomatoDens(coords, density, r, 1e20)$diagram
+  return(diagram)
 }
 
 filtClustDetections <- function(clusterIndices, minDetections) {
