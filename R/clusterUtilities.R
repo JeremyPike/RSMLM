@@ -2,6 +2,7 @@
 library("dbscan")
 library("deldir")
 library("igraph")
+library("geometry")
 
 clusterCCs <- function(coords, r) {
   
@@ -47,7 +48,7 @@ clusterDBSCAN <- function(coords, r, minPoints) {
   return(clusterIndices)
   
 }
-clusterVoronoi <- function(coords, threshold) {
+clusterVoronoi <- function(coords, threshold, algorithm, shortestDistance) {
   
   if (sum(duplicatedxy(coords[, 1], coords[, 2])) > 0) {
     stop("Detection list should not contain duplicated points")
@@ -63,13 +64,31 @@ clusterVoronoi <- function(coords, threshold) {
     g <- add_edges(g, c(rbind(vtess$delsgs$ind1, vtess$delsgs$ind2)))
     
     # compute first rank density
-    density <- c()
-    neigh <- adjacent_vertices(g, seq(1, numDetections, by = 1))
-    for (i in 1 : numDetections) {
-      density[i] = (1 + length(neigh[[i]])) / (tileAreas[i] + sum(tileAreas[neigh[[i]]]))
+    if (algorithm == 1) {
+      density <- c()
+      distances <- c()
+      neigh <- adjacent_vertices(g, seq(1, numDetections, by = 1))
+      for (i in 1 : numDetections) {
+        density[i] <- (1 + length(neigh[[i]])) / (tileAreas[i] + sum(tileAreas[neigh[[i]]]))
+        distances[i] <- min(sqrt((coords[i, 1] - coords[neigh[[i]], 1])^2 + (coords[i, 2] - coords[neigh[[i]], 2])^2))
+      }
+      tileIndices <-  density > threshold & distances < shortestDistance
+    } else if (algorithm == 2) {
+      density <- c()
+      neigh <- adjacent_vertices(g, seq(1, numDetections, by = 1))
+      for (i in 1 : numDetections) {
+        density[i] <- (1 + length(neigh[[i]])) / (tileAreas[i] + sum(tileAreas[neigh[[i]]]))
+        
+      }
+      tileIndices <- density > threshold
     }
-    # find tiles with density larger than threshold
-    tileIndices <- density > threshold
+    else {
+      density <- 1 / tileAreas
+      # find tiles with density larger than threshold
+      tileIndices <- density > threshold
+    }
+ 
+    
     
     # delete tiles with area larger than specified maxiumum
     g <- delete_vertices(g, which(!tileIndices))
@@ -83,6 +102,9 @@ clusterVoronoi <- function(coords, threshold) {
     return(clusterIndices)
   }
 }
+
+
+
 
 clusterRipley <- function(coords, r, threshold, ROIArea) {
   
@@ -137,6 +159,16 @@ tomatoDiagram <- function(coords, r) {
   return(diagram)
 }
 
+plotTomatoDiagram <- function(diagram, threshold, main) {
+  birthLim <- max(diagram[ , 1])
+  plot(diagram[ , 1], diagram[ , 2], xlim=c(0, birthLim), ylim=c(-1, birthLim), type = "p", col = "black", pch = 19, cex = 0.5, xlab="birth", ylab="death", main=main)
+  lines(c(0, birthLim),c(0, birthLim), type = "l", col="black")
+  lines(c(threshold, birthLim),c(0, birthLim - threshold), type = "l", col="green")
+  lines(c(threshold, threshold),c(-1, 0), type = "l", col="green")
+  
+  
+}
+
 filtClustDetections <- function(clusterIndices, minDetections) {
   
   clusterIndicesUnique <- unique(clusterIndices[clusterIndices > 0])
@@ -158,5 +190,67 @@ filtClustDetections <- function(clusterIndices, minDetections) {
     }
   }
   return(clusterIndicesFilt)
+}
+
+plotClusterScatter <- function(coords, clusterIndices) {
+  
+  detectionCol <- rep(rgb(0,0, 0, maxColorValue = 255), dim(coords)[1])
+  
+  numClusters <- length(unique(clusterIndices)) - 1
+  
+  rbPal <- colorRampPalette(c('red','green'))
+  
+  if (numClusters > 0) {
+    
+    clusterCols <- sample(rbPal(numClusters))
+    for (j in 1 : numClusters) {
+      detectionCol[clusterIndices == j] <- clusterCols[j]
+    }
+
+  }
+  plot(coords[ , 1], coords[ , 2], col = detectionCol, pch = 19)
+}
+
+
+clusterStats <- function(coords, clusterIndices) {
+
+  numClusters <- length(unique(clusterIndices[clusterIndices>0]))
+  numDetectionsCluster <- c()
+  volumesCluster <- rep(0, numClusters)
+  areasCluster <- rep(0, numClusters)
+  densitiesCluster <- rep(0, numClusters)
+
+  if (numClusters > 0) {
+
+    for(i in 1 : numClusters) {
+      coordsCluster <- coords[clusterIndices == i, ]
+      if (is.vector(coordsCluster)) {
+        numDetectionsCluster[i] <- 1
+      } else {
+        numDetectionsCluster[i] <- dim(coordsCluster)[1]
+      }
+      if (numDetectionsCluster[i] > 2) {
+        ch <- convhulln(coordsCluster, options = "FA")
+        areasCluster[i] <- ch$vol
+        densitiesCluster[i] <- numDetectionsCluster[i] / areasCluster[i] * 1000 * 1000
+      }
+
+
+    }
+  }
+  meanNumDetectionsCluster <- mean(numDetectionsCluster)
+  sdNumDetectionsCluster <- sd(numDetectionsCluster)
+  meanVolumesCluster <- mean(volumesCluster)
+  sdVolumesCluster <- sd(volumesCluster)
+  meanAreasCluster <- mean(areasCluster)
+  sdAreasCluster <- sd(areasCluster)
+  meanDensitiesCluster <- mean(densitiesCluster)
+  sdDensitiesCluster <- sd(densitiesCluster)
+
+  meanStats <- data.frame(numClusters, meanNumDetectionsCluster, sdNumDetectionsCluster,meanVolumesCluster, sdVolumesCluster, meanAreasCluster, sdAreasCluster, meanDensitiesCluster, sdDensitiesCluster)
+  individualStats <- data.frame(areasCluster, volumesCluster, densitiesCluster)
+  stats <- list(meanStats = meanStats, individualStats = individualStats)
+
+  return(stats)
 }
 
