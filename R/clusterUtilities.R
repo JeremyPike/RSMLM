@@ -192,6 +192,32 @@ filtClustDetections <- function(clusterIndices, minDetections) {
   return(clusterIndicesFilt)
 }
 
+
+filtClustAreas <- function(coords, clusterIndices, minArea, maxArea) {
+  
+  clusterIndicesUnique <- unique(clusterIndices[clusterIndices > 0])
+  numClusters <- length(clusterIndicesUnique)
+  
+  clusterIndicesFilt <- rep(0, length(clusterIndices))
+  clusterCount <- 0
+  if(numClusters > 0) {
+    for (i in 1 : numClusters) {
+      
+      numDetectionsCluster <- sum(clusterIndices == clusterIndicesUnique[i])
+      if (numDetectionsCluster > 2) {
+        coordsCluster <- coords[clusterIndices == i, ]
+        ch <- convhulln(coordsCluster, options = "FA")
+        areaCluster <- ch$vol
+        if (areaCluster >= minArea && areaCluster <= maxArea) {
+          clusterCount <- clusterCount + 1
+          clusterIndicesFilt[clusterIndices == clusterIndicesUnique[i]] <- clusterCount
+        }
+      }
+    }
+  }
+  return(clusterIndicesFilt)
+}
+
 plotClusterScatter <- function(coords, clusterIndices) {
   
   detectionCol <- rep(rgb(0,0, 0, maxColorValue = 255), dim(coords)[1])
