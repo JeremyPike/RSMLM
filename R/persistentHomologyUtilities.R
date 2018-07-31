@@ -1,5 +1,5 @@
 
-PH <- function(coords, maxDimension, maxScale, maxBottleneckDimension, numBootstraps) {
+persitentHomology <- function(coords, maxDimension, maxScale, maxBottleneckDimension, numBootstraps) {
   
   #calculate persistence diagram
   diag <- ripsDiag(X = coords, maxDimension, maxScale, library = "GUDHI", printProgress = TRUE, location=TRUE)

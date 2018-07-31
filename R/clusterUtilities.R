@@ -169,7 +169,7 @@ plotTomatoDiagram <- function(diagram, threshold, main) {
   
 }
 
-filtClustDetections <- function(clusterIndices, minDetections) {
+filtClustDetections <- function(clusterIndices, minDetections, maxDetections) {
   
   clusterIndicesUnique <- unique(clusterIndices[clusterIndices > 0])
   numClusters <- length(clusterIndicesUnique)
@@ -182,7 +182,7 @@ filtClustDetections <- function(clusterIndices, minDetections) {
     
       numDetectionsCluster <- sum(clusterIndices == clusterIndicesUnique[i])
    
-      if (numDetectionsCluster >= minDetections) {
+      if (numDetectionsCluster >= minDetections && numDetectionsCluster <= maxDetections) {
         clusterCount <- clusterCount + 1
         clusterIndicesFilt[clusterIndices == clusterIndicesUnique[i]] <- clusterCount
       }
@@ -274,7 +274,7 @@ clusterStats <- function(coords, clusterIndices) {
   sdDensitiesCluster <- sd(densitiesCluster)
 
   meanStats <- data.frame(numClusters, meanNumDetectionsCluster, sdNumDetectionsCluster,meanVolumesCluster, sdVolumesCluster, meanAreasCluster, sdAreasCluster, meanDensitiesCluster, sdDensitiesCluster)
-  individualStats <- data.frame(areasCluster, volumesCluster, densitiesCluster)
+  individualStats <- data.frame(numDetectionsCluster, areasCluster, volumesCluster, densitiesCluster)
   stats <- list(meanStats = meanStats, individualStats = individualStats)
 
   return(stats)
