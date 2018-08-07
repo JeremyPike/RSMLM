@@ -257,7 +257,7 @@ clusterStats <- function(coords, clusterIndices) {
       }
       if (numDetectionsCluster[i] > 2) {
         ch <- convhulln(coordsCluster, options = "FA")
-        if (dim(coords)[2] == 1) {
+        if (dim(coords)[2] == 2) {
           areasCluster[i] <- ch$vol
         } else {
           areasCluster[i] <- ch$area
