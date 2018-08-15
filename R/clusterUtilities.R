@@ -245,11 +245,18 @@ clusterStats <- function(coords, clusterIndices) {
   volumesCluster <- rep(0, numClusters)
   areasCluster <- rep(0, numClusters)
   densitiesCluster <- rep(0, numClusters)
+  meanX  <- rep(0, numClusters)
+  meanY  <- rep(0, numClusters)
+  meanZ  <- rep(0, numClusters)
 
   if (numClusters > 0) {
 
     for(i in 1 : numClusters) {
       coordsCluster <- coords[clusterIndices == i, ]
+      meanX[i]  <- mean(coordsCluster[, 1]) 
+      meanY[i]  <- mean(coordsCluster[, 2])
+  
+      
       if (is.vector(coordsCluster)) {
         numDetectionsCluster[i] <- 1
       } else {
@@ -262,6 +269,7 @@ clusterStats <- function(coords, clusterIndices) {
         } else {
           areasCluster[i] <- ch$area
           volumesCluster[i] <- ch$vol
+          meanZ[i]  <- mean(coordsCluster[, 3])
         }
         
         densitiesCluster[i] <- numDetectionsCluster[i] / areasCluster[i] * 1000 * 1000
@@ -280,7 +288,7 @@ clusterStats <- function(coords, clusterIndices) {
   sdDensitiesCluster <- sd(densitiesCluster)
 
   meanStats <- data.frame(numClusters, meanNumDetectionsCluster, sdNumDetectionsCluster,meanVolumesCluster, sdVolumesCluster, meanAreasCluster, sdAreasCluster, meanDensitiesCluster, sdDensitiesCluster)
-  individualStats <- data.frame(numDetectionsCluster, areasCluster, volumesCluster, densitiesCluster)
+  individualStats <- data.frame(numDetectionsCluster, areasCluster, volumesCluster, densitiesCluster, meanX, meanY, meanZ)
   stats <- list(meanStats = meanStats, individualStats = individualStats)
 
   return(stats)
