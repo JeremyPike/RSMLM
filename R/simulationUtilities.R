@@ -128,12 +128,14 @@ simulateSTORM <- function(moleculeCoords, averageLabelsPerMol, blinkGeomProb, pr
     for (d in 1 : numDimensions) {
       falseDetections[, d] <-  runif(numFlaseDetections, fieldLimits[1, d], fieldLimits[2, d])
     }
+    detectionIndex <- c(detectionIndex, rep(0, numFlaseDetections))
+    detectionPositions <- rbind(detectionPositions, falseDetections)
     
   }
-  detectionIndex <- c(detectionIndex, rep(0, numFlaseDetections))
-  detectionPositions <- rbind(detectionPositions, falseDetections)
   
-  return (detectionPositions)
+  simulatedData <- list(detectionList = detectionPositions, moleculeIndex = detectionIndex)
+  
+  return (simulatedData)
 }
 
 
