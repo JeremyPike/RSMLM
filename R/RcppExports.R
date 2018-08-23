@@ -2,10 +2,10 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 tomato <- function(coords, num_neighb, r, threshold) {
-    .Call(`_SMLM_tomato`, coords, num_neighb, r, threshold)
+    .Call(`_RSMLM_tomato`, coords, num_neighb, r, threshold)
 }
 
 tomatoDens <- function(coords, density, r, threshold) {
-    .Call(`_SMLM_tomatoDens`, coords, density, r, threshold)
+    .Call(`_RSMLM_tomatoDens`, coords, density, r, threshold)
 }
 

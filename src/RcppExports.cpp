@@ -7,7 +7,7 @@ using namespace Rcpp;
 
 // tomato
 List tomato(NumericMatrix coords, int num_neighb, double r, double threshold);
-RcppExport SEXP _SMLM_tomato(SEXP coordsSEXP, SEXP num_neighbSEXP, SEXP rSEXP, SEXP thresholdSEXP) {
+RcppExport SEXP _RSMLM_tomato(SEXP coordsSEXP, SEXP num_neighbSEXP, SEXP rSEXP, SEXP thresholdSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -21,7 +21,7 @@ END_RCPP
 }
 // tomatoDens
 List tomatoDens(NumericMatrix coords, NumericVector density, double r, double threshold);
-RcppExport SEXP _SMLM_tomatoDens(SEXP coordsSEXP, SEXP densitySEXP, SEXP rSEXP, SEXP thresholdSEXP) {
+RcppExport SEXP _RSMLM_tomatoDens(SEXP coordsSEXP, SEXP densitySEXP, SEXP rSEXP, SEXP thresholdSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -35,12 +35,12 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_SMLM_tomato", (DL_FUNC) &_SMLM_tomato, 4},
-    {"_SMLM_tomatoDens", (DL_FUNC) &_SMLM_tomatoDens, 4},
+    {"_RSMLM_tomato", (DL_FUNC) &_RSMLM_tomato, 4},
+    {"_RSMLM_tomatoDens", (DL_FUNC) &_RSMLM_tomatoDens, 4},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_SMLM(DllInfo *dll) {
+RcppExport void R_init_RSMLM(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }
