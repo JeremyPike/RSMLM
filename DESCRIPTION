@@ -1,4 +1,4 @@
-Package: SMLM
+Package: RSMLM
 Type: Package
 Title: Tools for clustering and topoligical data analysis of single molecule localization microscopy (SMLM) datasets. 
 Version: 1.0

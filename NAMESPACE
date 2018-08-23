@@ -1,4 +1,4 @@
-useDynLib(SMLM, .registration=TRUE)
+useDynLib(RSMLM, .registration=TRUE)
 exportPattern("^[[:alpha:]]+")
 importFrom(Rcpp, evalCpp)
 importFrom(dbscan, frNN, dbscan, pointdensity, adjacencylist)
