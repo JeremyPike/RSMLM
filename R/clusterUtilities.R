@@ -33,6 +33,50 @@ clusterTomato <- function(coords, r, threshold) {
   return(clusterIndices)
 }
 
+#' Persistence clustering using the Ripley L function to define the detection density
+#
+#' 
+#' @param coords A matrix containing coordinates of the detections.
+#' @param r The search radius for density estimation and to contruct linking graph
+#' @param threshold Persistence threshold for L-r
+#' @param ROIArea Area of the field of view. Needed to calcualte the Ripley K function.
+#' @return Vector containing the cluster indices for each detection, a cluster index of zero refers to noise
+#' 
+clusterPersitenceRipley <- function(coords, r, threshold, ROIArea) {
+  
+  coords <- as.matrix(coords)
+  
+  
+  numDimensions <- dim(coords)[2]
+  if (numDimensions > 3 || numDimensions < 2) {
+    stop('Coordinates should be 2D or 3D')
+  } 
+  
+  numDetections <- dim(coords)[1]
+  
+  # use dbscan library to count number of neighbours within fixed search radius
+  fr <- frNN(coords, eps = r)
+  numNeighbours <- rep(0, numDetections)
+  for (k in 1 : numDetections) {
+    numNeighbours[k] <- length(fr$id[[k]])
+  }
+  
+  # calculate the Ripley K function for each detection
+  K <- numNeighbours * ROIArea / (numDetections - 1)
+  
+  # calculate the Ripley L function and subract r to get L - r (LminR)
+  if (numDimensions == 3) {
+    LminR <- (3 * K / pi / 4)^(1/3) - r
+  } else {
+    LminR <- sqrt(K / pi) - r
+  }
+
+  # tomato algorithm performed using c++ function
+  clusterIndices <- tomatoDens(coords, LminR, r, threshold)$clusters
+  return(clusterIndices)
+}
+
+
 
 
 #' Density-based spatial clustering of applications with noise (DBSCAN)
@@ -51,6 +95,8 @@ clusterDBSCAN <- function(coords, r, minPoints) {
   if (numDimensions > 3 || numDimensions < 2) {
     stop('Coordinates should be 2D or 3D')
   } 
+
+  
   # perform DBSCAN using "dbscan" pacakage
   fr <- frNN(coords, r)
   clusterIndices <- dbscan(fr, minPts = minPoints, borderPoints=TRUE)$cluster
@@ -108,10 +154,7 @@ clusterVoronoi <- function(coords, threshold, densityChoice) {
     }
   # use tile area for density calculation
   } else if (densityChoice == 0) {
-    for (i in 1 : numDetections) {
-      density[i] <- (1 + length(neigh[[i]])) / (tileAreas[i] + sum(tileAreas[neigh[[i]]]))
-      
-    }
+    density <- 1 / tileAreas
   }
   # delete tiles with area larger than specified maxiumum
   tileIndices <-  density > threshold
