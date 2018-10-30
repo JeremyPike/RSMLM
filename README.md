@@ -15,7 +15,7 @@ The **devtools** package can be used to install the development version directly
 install_github("jeremypike/RSMLM")
 ```
 
-To run this command you will need [devtools](https://cran.r-project.org/package=devtools). Windows users we also need [Rtools](http://www.murdoch-sutherland.com/Rtools/).
+To run this command you will need [devtools](https://cran.r-project.org/package=devtools). Windows users will also need [Rtools](http://www.murdoch-sutherland.com/Rtools/).
 
 ## Citation
 
