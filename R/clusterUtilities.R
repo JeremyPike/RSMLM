@@ -5,8 +5,11 @@ library("igraph")
 library("geometry")
 library("ggplot2")
 library("randomcoloR")
-
-
+library("spatstat")
+library("TDA")
+library("sf")
+library("pdfCluster")
+library("imager")
 
 #' Topological Model Analysis Tool (ToMATo) clustering
 #'
@@ -56,20 +59,8 @@ clusterPersitenceRipley <- function(coords, r, threshold, ROIArea) {
   
   # use dbscan library to count number of neighbours within fixed search radius
   fr <- frNN(coords, eps = r)
-  numNeighbours <- rep(0, numDetections)
-  for (k in 1 : numDetections) {
-    numNeighbours[k] <- length(fr$id[[k]])
-  }
-  
-  # calculate the Ripley K function for each detection
-  K <- numNeighbours * ROIArea / (numDetections - 1)
-  
-  # calculate the Ripley L function and subract r to get L - r (LminR)
-  if (numDimensions == 3) {
-    LminR <- (3 * K / pi / 4)^(1/3) - r
-  } else {
-    LminR <- sqrt(K / pi) - r
-  }
+ 
+  LminR <- .ripleyL(coords, fr, ROIArea) - r
 
   # tomato algorithm performed using c++ function
   clusterIndices <- tomatoDens(coords, LminR, r, threshold)$clusters
@@ -196,20 +187,8 @@ clusterRipley <- function(coords, r, threshold, ROIArea) {
   
   # use dbscan library to count number of neighbours within fixed search radius
   fr <- frNN(coords, eps = r)
-  numNeighbours <- rep(0, numDetections)
-  for (k in 1 : numDetections) {
-    numNeighbours[k] <- length(fr$id[[k]])
-  }
   
-  # calculate the Ripley K function for each detection
-  K <- numNeighbours * ROIArea / (numDetections - 1)
-  
-  # calculate the Ripley L function and subract r to get L - r (LminR)
-  if (numDimensions == 3) {
-    LminR <- (3 * K / pi / 4)^(1/3) - r
-  } else {
-    LminR <- sqrt(K / pi) - r
-  }
+  LminR <- .ripleyL(coords, fr, ROIArea) - r
   
   # to hold custer indices
   clusterIndices <- rep(0, numDetections)
@@ -235,6 +214,26 @@ clusterRipley <- function(coords, r, threshold, ROIArea) {
   }
   return(clusterIndices)
 }
+
+
+
+
+ripleyLminR <- function(coords, r, ROIArea) {
+  
+  numDimensions <- dim(coords)[2]
+  if (numDimensions > 3 || numDimensions < 2) {
+    stop('Coordinates should be 2D or 3D')
+  } 
+  
+  # use dbscan library to count number of neighbours within fixed search radius
+  fr <- frNN(coords, eps = r)
+  
+  LminR <- .ripleyL(coords, fr, ROIArea) - r
+  
+  
+  return(LminR)
+}
+
 
 #' Simple clustering scheme linking all detections within a search radius
 #' 
@@ -269,6 +268,73 @@ clusterCCs <- function(coords, r) {
   return(clusterIndices)
   
 }
+
+#' 2D Kernel Density Estimate (KDE) based clustering
+#'
+#' Uses a Guassian kernel to estimate detection detensity on a grid. Estimate is thresholded and the connected components define the cluster. Threshold is scaled between the minimum and maxium of the density estimate.
+#' 
+#' @param coords A matrix containing coordinates of the detections.
+#' @param std The standard deviation of the Guassian kernels. Either a fixed value, a vector of length 2, a vector of length equal to the number of detecions or a matrix with the same dimension as coords.
+#' @param threshold Threshold for density esimate. Between 0 and 1.
+#' @param gridWidth Defines the resolution of the evulation grid. Default value of 5.
+#' @return Vector containing the cluster indices for each detection, a cluster index of zero refers to noise
+#'
+clusterKDE <- function(coords, std, threshold, gridWidth = 5) {
+  
+  if (threshold < 0 || threshold > 1 ) {
+    stop('threshold should be between 0 and 1')
+  } 
+  
+  coords <- as.matrix(coords)
+  numDimensions <- dim(coords)[2]
+  if (numDimensions != 2) {
+    stop('Coordinates should be 2D')
+  } 
+  numDetections <- dim(coords)[1]
+  
+  if(length(std) == 1) {
+    std <- matrix(std, nrow=numDetections, ncol=numDimensions)
+  } else if (length(std) == numDimensions) {
+    std <-  t(replicate(numDetections, std))
+  } else if (length(std) == numDetections) {
+    std <-  replicate(numDimensions, std)
+  } else if (dim(std) != dim(coords)) {
+    stop('std is not formatted correctly')
+  } 
+  
+  # create grid to evalaute kernal detisty estimate at
+  xGrid <- seq(round(min(coords[, 1])) - gridWidth, round(max(coords[, 1])) + gridWidth, gridWidth)
+  yGrid <- seq(round(min(coords[, 2])) - gridWidth, round(max(coords[, 2])) + gridWidth, gridWidth) 
+  
+  # calulate Gaussian kernel density estimate using pdfCluster library  
+  kde <- kepdf(coords, eval.points = expand.grid(x = xGrid, y = yGrid), kernel = "gaussian", bwtype = "adaptive", hx = std)
+  
+  # convert KDE into an cimg object (from imager)
+  evalPointsImg <- expand.grid(x = 1:length(xGrid), y = 1:length(yGrid))
+  kdImage <- as.data.frame(cbind(evalPointsImg, kde@estimate))
+  colnames(kdImage) <-  c('x', 'y', 'value')
+  kdImage <- as.cimg(kdImage, dim = c(length(xGrid), length(yGrid), 1, 1))
+  
+  # calulate the scaled threshold value
+  scaledThresh <- min(kdImage) + (max(kdImage) - min(kdImage)) * threshold
+  # threshold the image as scaled threshold and find the connected compoents
+  kdImageClusters <- label(imager::threshold(kdImage, scaledThresh), high_connectivity = FALSE)
+  #plot(kdImageClusters)
+  
+  # for each detection find which connected component of the labelled image it resides in
+  xGridMin <- min(xGrid) 
+  yGridMin <- min(yGrid) 
+  clusterIndices <- apply(coords, 1, function(r) {
+    xCoord <- round((r[1]- xGridMin) / gridWidth + 1) 
+    yCoord <- round((r[2]- yGridMin) / gridWidth + 1) 
+    return(at(kdImageClusters, xCoord, yCoord))
+  })
+  # set noise detections to zero
+  clusterIndices[is.na(clusterIndices)] <- 0
+  
+  return(clusterIndices)
+}
+
 
 
 #' Produces a ToMATo persistence diagram
@@ -367,22 +433,22 @@ plotClusterScatter <- function(coords, clusterIndices) {
     }
     
     # plot using ggplot2
-    ggplot(detectionList, aes(x = x, y = y, color = factor(clusterIndex))) + 
+    print(ggplot(detectionList, aes(x = x, y = y, color = factor(clusterIndex))) + 
       geom_point(size = 1.2, shape = 16) +
       theme_bw() +
       theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
       scale_color_manual(values = clusterColors) +
       theme(axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank(), 
             axis.title.y=element_blank(), axis.text.y=element_blank(), axis.ticks.y=element_blank(),
-            legend.position="none")  
+            legend.position="none") ) 
   } else {
-    ggplot(detectionList, aes(x = x, y = y)) + 
+    print(ggplot(detectionList, aes(x = x, y = y)) + 
       geom_point(size = 1.2, shape = 16, color = "black") +
       theme_bw() +
       theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
       theme(axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank(), 
             axis.title.y=element_blank(), axis.text.y=element_blank(), axis.ticks.y=element_blank(),
-            legend.position="none") 
+            legend.position="none") )
     
   }
   
@@ -400,18 +466,29 @@ plotClusterScatter <- function(coords, clusterIndices) {
 #' 
 
 
-clusterStats <- function(coords, clusterIndices) {
+clusterStats <- function(coords, clusterIndices, areaMethod ="ch", scale=0) {
+  
+  areaMethod <- tolower(areaMethod)
+  
+  if(!(areaMethod %in% c("ch", "rips", "dilate")))
+    stop('areaMethod should be either "CH", "Rips", or "Overlap"')
+  
+  if(areaMethod %in% c("rips", "dilate") && scale == 0) 
+    stop('When areaMethod is "Rips" or "dilate" a scale should be specified')
   
   numDimensions <- dim(coords)[2]
-  if (numDimensions > 3 || numDimensions < 2) {
+  if (numDimensions > 3 || numDimensions < 2) 
     stop('Coordinates should be 2D or 3D')
-  } 
+  
+  if (numDimensions == 3 && areaMethod %in% c("rips", "dilate")) 
+    stop('For 3D data only convex hull area calculatib is implemented')
+  
   
   # check coords and clsterIndices have the same number of detections
   numDetections <- dim(coords)[1]
-  if (numDetections != length(clusterIndices)) {
+  if (numDetections != length(clusterIndices)) 
     stop('coords and clusterIndices should have the same length')
-  }   
+  
   
   
   # find indices of all clusters
@@ -419,42 +496,56 @@ clusterStats <- function(coords, clusterIndices) {
   numClusters <- length(clusterIndicesUnique)
   
   # data frame to hold per cluster statistics (fill with zeros)
-  clustStats <-data.frame(matrix(0, nrow = numClusters, ncol = 7))
-  colnames(clustStats) <- c("numDetectionsCluster", "areasCluster", "volumesCluster", "densitiesCluster", "meanX", "meanY", "meanZ")
+  clustStats <-data.frame(matrix(0, nrow = numClusters, ncol = 8))
+  colnames(clustStats) <- c("clusterIndex","numDetectionsCluster", "areasCluster", "volumesCluster", "densitiesCluster", "meanX", "meanY", "meanZ")
   
   if (numClusters > 0) {
 
     for(i in 1 : numClusters) {
       
+      clustStats$clusterIndex[i] <- clusterIndicesUnique[i]
+      
       # cluster coordinates
-      coordsCluster <- coords[clusterIndices == i, ]
+      coordsCluster <- coords[clusterIndices == clusterIndicesUnique[i], ]
       
-      # mean coordinates for each dimension
-      clustStats$meanX[i]  <- mean(coordsCluster[, 1]) 
-      clustStats$meanY[i]  <- mean(coordsCluster[, 2])
-      if (numDimensions == 3) {
-        clustStats$meanZ[i]  <- mean(coordsCluster[, 3])
-      }
+      if (!is.vector(coordsCluster)) {
       
-      # find number of detections in cluster
-      clustStats$numDetectionsCluster[i] <- sum(clusterIndices == clusterIndicesUnique[i])
-      
-      
-      if (clustStats$numDetectionsCluster[i] > 2) {
-        #calculate convex hull
-        ch <- convhulln(coordsCluster, options = "FA")
-        # get cluster area (and also volume for 3D) and densities. Used geometry library to calculate convex hulls.
-        if (numDimensions == 2) {
-          clustStats$areasCluster[i] <- ch$vol
-          clustStats$densitiesCluster[i] <- clustStats$numDetectionsCluster[i] / clustStats$areasCluster[i]
-        } else {
-          clustStats$areasCluster[i] <- ch$area
-          clustStats$volumesCluster[i] <- ch$vol
-          clustStats$densitiesCluster[i] <- clustStats$numDetectionsCluster[i] / clustStats$volumesCluster[i]
+        # mean coordinates for each dimension
+        clustStats$meanX[i]  <- mean(coordsCluster[, 1]) 
+        clustStats$meanY[i]  <- mean(coordsCluster[, 2])
+        if (numDimensions == 3) {
+          clustStats$meanZ[i]  <- mean(coordsCluster[, 3])
         }
         
-      }
+        # find number of detections in cluster
+        clustStats$numDetectionsCluster[i] <- dim(coordsCluster)[1]
+        
 
+        if (clustStats$numDetectionsCluster[i] > 2) {
+          area <- .clusterArea(coordsCluster, areaMethod, scale)
+          clustStats$areasCluster[i] <- area$area
+          clustStats$volumesCluster[i] <- area$vol
+
+          if (numDimensions == 2) {
+            clustStats$densitiesCluster[i] <- clustStats$numDetectionsCluster[i] / clustStats$areasCluster[i]
+          } else {
+            clustStats$densitiesCluster[i] <- clustStats$numDetectionsCluster[i] / clustStats$volumesCluster[i]
+          }
+
+        }
+
+      } else {
+        warning("Cluster has ony 1 detection")
+        clustStats$meanX[i]  <- coordsCluster[1]
+        clustStats$meanY[i]  <- coordsCluster[2]
+        if (numDimensions == 3) {
+          clustStats$meanZ[i]  <- coordsCluster[3]
+        }
+        clustStats$numDetectionsCluster[i] <- 1
+        clustStats$areasCluster[i]<- 0
+        clustStats$densitiesCluster[i]<- 0
+        clustStats$volumesCluster[i] <- 0
+      }
     }
   }
 
@@ -464,40 +555,42 @@ clusterStats <- function(coords, clusterIndices) {
 
 
 
+
+
 #' Filter clusters based on number of detecions in a cluster
 #'
 #' Detections in clusters outside specified range are asigned an index of zero
-#' 
+#'
 #' @param clusterIndices The cluster index for each detection. Noise detections should have cluster index zero.
 #' @param minDetections The minimum number of detections each cluster should contain.
 #' @param maxDetections The maximum number of detections each cluster should contain.
 #' @return Vector containing filtered cluster indices
-#' 
+#'
 filtClustDetections <- function(clusterIndices, minDetections, maxDetections) {
-  
+
   # find indices of all clusters
   clusterIndicesUnique <- unique(clusterIndices[clusterIndices > 0])
   numClusters <- length(clusterIndicesUnique)
-  
+
   # to hold filtered cluster indices
   clusterIndicesFilt <- rep(0, length(clusterIndices))
-  
+
   # count of number of filtered clusters
   clusterCount <- 0
-  
+
   if(numClusters > 0) {
     for (i in 1 : numClusters) {
-      
+
       # find number of detections in cluster
       numDetectionsCluster <- sum(clusterIndices == clusterIndicesUnique[i])
-      
+
       # if this in in the specified range
       if (numDetectionsCluster >= minDetections && numDetectionsCluster <= maxDetections) {
         clusterCount <- clusterCount + 1
         # use cluster count to define index for filtered cluster
         clusterIndicesFilt[clusterIndices == clusterIndicesUnique[i]] <- clusterCount
       }
-      
+
     }
   }
   return(clusterIndicesFilt)
@@ -506,46 +599,46 @@ filtClustDetections <- function(clusterIndices, minDetections, maxDetections) {
 #' Filter clusters based on area/volume
 #'
 #'In 3D clusters are filtered by volume instead of area.
-#'Area/volume defined by convex hull. 
+#'Area/volume defined by convex hull.
 #'Detections in clusters outside specified range are asigned an index of zero.
-#' 
+#'
 #' @param coords A matrix containing coordinates of the detections.
 #' @param clusterIndices The cluster index for each detection. Noise detections should have cluster index zero.
 #' @param minArea Minimum cluster area/volume.
 #' @param maxArea Maximum cluster area/volume.
 #' @return Vector containing filtered cluster indices
-#' 
+#'
 filtClustArea <- function(coords, clusterIndices, minArea, maxArea) {
-  
-  
+
+
   numDimensions <- dim(coords)[2]
   if (numDimensions > 3 || numDimensions < 2) {
     stop('Coordinates should be 2D or 3D')
-  } 
-  
+  }
+
   # check coords and clsterIndices have the same number of detections
   numDetections <- dim(coords)[1]
   if (numDetections != length(clusterIndices)) {
     stop('coords and clusterIndices should have the same length')
-  }   
-  
+  }
+
   # find indices of all clusters
   clusterIndicesUnique <- unique(clusterIndices[clusterIndices > 0])
   numClusters <- length(clusterIndicesUnique)
-  
+
   # to hold filtered cluster indices
   clusterIndicesFilt <- rep(0, length(clusterIndices))
-  
+
   # count of number of filtered clusters
   clusterCount <- 0
-  
+
   if(numClusters > 0) {
     for (i in 1 : numClusters) {
-      
+
       # find number of detections in cluster
       numDetectionsCluster <- sum(clusterIndices == clusterIndicesUnique[i])
       if (numDetectionsCluster > 2) {
-        
+
         coordsCluster <- coords[clusterIndices == i, ]
         # calculate convex hull of cluster
         ch <- convhulln(coordsCluster, options = "FA")
@@ -562,4 +655,137 @@ filtClustArea <- function(coords, clusterIndices, minArea, maxArea) {
   }
   return(clusterIndicesFilt)
 }
+
+# 
+# clusterAreaOverlap <- function(coords, clusterIndices, r) {
+#   
+#   numDimensions <- dim(coords)[2]
+#   if (numDimensions > 3 || numDimensions < 2) {
+#     stop('Coordinates should be 2D or 3D')
+#   } 
+#   
+#   # check coords and clsterIndices have the same number of detections
+#   numDetections <- dim(coords)[1]
+#   if (numDetections != length(clusterIndices)) {
+#     stop('coords and clusterIndices should have the same length')
+#   }   
+#   
+#   
+#   # find indices of all clusters
+#   clusterIndicesUnique <- unique(clusterIndices[clusterIndices > 0])
+#   numClusters <- length(clusterIndicesUnique)
+#   
+#   
+#   if (numClusters > 0) {
+#     
+#     clusterAreas <- c()
+#     bounds <- c(min(coords[ ,1]), max(coords[ ,1]),min(coords[ ,2]), max(coords[ ,2]))
+#     for(i in 1 : numClusters) {
+#       
+#       # cluster coordinates
+#       coordsCluster <- coords[clusterIndices == clusterIndicesUnique[i], ]
+# 
+#       clusterAreas[clusterIndicesUnique[i]] <- dilated.areas(as.ppp(coordsCluster, bounds), r, constrained=FALSE, exact = FALSE)
+#       
+#     }
+#   }
+#   
+#   return(clusterAreas)
+# }
+
+filtClust <- function(clusterIndices, features, minFeature, maxFeature) {
+  
+  # find indices of all clusters
+  clusterIndicesUnique <- unique(clusterIndices[clusterIndices > 0])
+  numClusters <- length(clusterIndicesUnique)
+  
+
+  if (numClusters != length(features)) {
+    stop('there should be one feature per cluser')
+  }   
+  
+  
+  
+  # to hold filtered cluster indices
+  clusterIndicesFilt <- rep(0, length(clusterIndices))
+  
+  # count of number of filtered clusters
+  clusterCount <- 0
+  
+  if(numClusters > 0) {
+    for (i in 1 : numClusters) {
+      
+      if (features[i] >= minFeature && features[i] <= maxFeature) {
+        clusterCount <- clusterCount + 1
+        # use cluster count to define index for filtered cluster
+        clusterIndicesFilt[clusterIndices == clusterIndicesUnique[i]] <- clusterCount
+      }
+      
+    }
+  }
+  return(clusterIndicesFilt)
+}
+
+
+.ripleyL <- function(coords, rNN, ROIArea) {
+  numDimensions <- dim(coords)[2]
+  # number of neighbours for each spot withing specified radius
+  numNeigh <- sapply(rNN$dist, length)
+  # calculate ripley K function
+  K <- sapply(numNeigh, function(numNeigh, N, ROIArea) {numNeigh * ROIArea / (N - 1)}, N=dim(coords)[1], ROIArea=ROIArea)
+  # calculate the Ripley L function and subract r to get L - r (LminR)
+  if (numDimensions == 3) {
+    L <- (3 * K / pi / 4)^(1/3)
+  } else {
+    L <- sqrt(K / pi)
+  }
+  return(L)
+}
+
+
+.clusterArea <- function(coords, method, scale) {
+  
+  area <- NaN
+  volume <- NaN
+
+  
+  if(method == "ch") {
+    numDetections <- dim(coords)[1]
+    numDimensions <- dim(coords)[2]
+    if (numDetections > 2) {
+       #calculate convex hull
+      ch <- convhulln(coords, options = "FA")
+      # get cluster area (and also volume for 3D) and densities. Used geometry library to calculate convex hulls.
+      if (numDimensions == 2) {
+        area <- ch$vol
+      } else if (numDetections > 3) {
+        area <- ch$area
+        volume <- ch$vol
+      }
+    }
+  } else if(method == "rips") {
+    
+    filt <- ripsFiltration(X = coords, 1, scale, library = "GUDHI", printProgress = FALSE)
+    triangles <- Filter(function(x) length(x)==3, filt$cmplx[filt$values <= scale])
+    if (length(triangles) > 0) {
+      multiPoly <- st_multipolygon(lapply(triangles, function(x) list(as.matrix(rbind(filt$coordinates[x, ], filt$coordinates[x[1], ])))))
+      unionPoly <- st_union(multiPoly)
+      area <- st_area(unionPoly)
+      #print(plot(unionPoly))
+    } else {
+      warning('no triangles in rips complex for area calculation')
+    }
+   
+  } else if(method == "dilate") {
+    
+    bounds <- c(min(coords[ ,1]), max(coords[ ,1]), min(coords[ ,2]), max(coords[ ,2]))
+    area <- dilated.areas(as.ppp(coords, bounds), scale, constrained=FALSE, exact = FALSE)
+    
+  }
+  
+  return(list(area = area, volume = volume))
+  
+}
+
+
 

@@ -5,8 +5,8 @@ Version: 1.0
 Date: 2018-05-16
 Author: Jeremy Pike	
 Maintainer: Jeremy Pike <j.a.pike@bham.ac.uk>
-Description: Implements ToMaTo, DBCAN, Ripley K and Voronoi tesselation based cluster analysis. Persientent homology is also implented through TDA and the GHUDI library. Wrapper for C++ implentation of Topological Mode Analysis Tool (ToMaTo) clustering (https://geometrica.saclay.inria.fr/data/Steve.Oudot/clustering/). Makes use of ANN (A Library forApproximate Nearest Neighbor Searching). Is included.
+Description: Implements ToMATo, DBCAN, Ripley K, Voronoi tesselation and KDE based cluster analysis. Persientent homology is also implented through TDA and the GHUDI library. Wrapper for C++ implentation of Topological Mode Analysis Tool (ToMaTo) clustering (https://geometrica.saclay.inria.fr/data/Steve.Oudot/clustering/). Makes use of ANN (A Library forApproximate Nearest Neighbor Searching). Is included.
 License: GPL (>= 2)
-Imports: Rcpp, dbscan, deldir, igraph, geometry, ggplot2, randomcoloR
+Imports: Rcpp, dbscan, deldir, igraph, geometry, ggplot2, randomcoloR, splancs, spatstat, TDA, sf, plyr, pdfCluster, imager
 LinkingTo: Rcpp
-RoxygenNote: 6.0.1
+RoxygenNote: 6.1.1
