@@ -4,7 +4,7 @@
 \alias{clusterStats}
 \title{Calculate per cluster statsitics}
 \usage{
-clusterStats(coords, clusterIndices)
+clusterStats(coords, clusterIndices, areaMethod = "ch", scale = 0)
 }
 \arguments{
 \item{coords}{A matrix containing coordinates of the detections.}

@@ -20,6 +20,6 @@ Vector containing filtered cluster indices
 }
 \description{
 In 3D clusters are filtered by volume instead of area.
-Area/volume defined by convex hull. 
+Area/volume defined by convex hull.
 Detections in clusters outside specified range are asigned an index of zero.
 }
