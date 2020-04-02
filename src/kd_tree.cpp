@@ -212,6 +212,12 @@ ANNkd_tree::~ANNkd_tree()				// tree destructor
 	if (pidx != NULL) delete [] pidx;
 	if (bnd_box_lo != NULL) annDeallocPt(bnd_box_lo);
 	if (bnd_box_hi != NULL) annDeallocPt(bnd_box_hi);
+	if (pts != NULL){
+		for (int i = 0; i < n_pts; i++){
+			delete[] pts[i];
+		}
+		delete[] pts;
+	}
 }
 
 //----------------------------------------------------------------------
@@ -250,6 +256,7 @@ void ANNkd_tree::SkeletonTree(			// construct skeleton tree
 {
 	dim = dd;							// initialize basic elements
 	n_pts = n;
+	pts = NULL;
 	bkt_size = bs;
 	pts = pa;							// initialize points array
 

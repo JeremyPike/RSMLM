@@ -85,12 +85,17 @@ class  Distance_ANN : public Distance<Iterator>{
     for(;st!=en;st++){
       data[i++] = st->geometry.coord;
     }
-    
+    // delete kd; // it gives segfault here 
     kd = new ANNkd_tree(data,num_points,dim);    
   }
 
 
-  Distance_ANN(){}
+  Distance_ANN(){
+    kd = NULL;
+  }
+  ~Distance_ANN(){
+    delete kd;
+  }
   Distance_ANN(Iterator st,Iterator en,int dim){
     initialize(st,en,dim);
   }

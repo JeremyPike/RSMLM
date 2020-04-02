@@ -56,8 +56,12 @@ public:
   int dim;
   
 
-  ANNPoint(){}
-  
+  ANNPoint(){
+    coord=NULL;
+  }
+  ~ANNPoint(){
+    // delete[] coord; // Apparently this data is deleted elsewhere..
+  }
   ANNPoint(int d){
     dim = d;
   }
@@ -67,6 +71,8 @@ public:
   // I/O functions
   //------------------------------------------------------------------------
   friend std::istream& operator >>(std::istream &in, ANNPoint &out) {
+    if(out.coord!=NULL)
+      delete[] out.coord;
     int i;
     out.coord = new double[out.dim]; 
     for(i=0;i<out.dim;i++){

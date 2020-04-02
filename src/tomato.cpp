@@ -126,7 +126,7 @@ List tomato(NumericMatrix coords, int num_neighb, double r, double threshold) {
      diagram(i, 1) = deaths.at(i);
    }
  
-    
+
 
   return List::create(Named("clusters") = clusters,
                       Named("diagram") = diagram);
@@ -156,9 +156,10 @@ List tomatoDens(NumericMatrix coords, NumericVector density, double r, double th
   
   //create distance structure
   Distance_ANN< vector< Point >::iterator > metric_information;
-  metric_information.initialize(point_cloud.begin(),
-                                point_cloud.end(),
-                                dim);
+  // this one had to be commented out since initialising the metric_information twice causes a memory leak (plus, it's also useless doing it at this point)
+  // metric_information.initialize(point_cloud.begin(),
+  //                               point_cloud.end(),
+  //                               dim);
   
   
   
@@ -185,7 +186,7 @@ List tomatoDens(NumericMatrix coords, NumericVector density, double r, double th
     point_cloud[i] = pc[perm[i]];
   
   //update distance structure --- since it relies on the order of entry
-  metric_information.initialize(point_cloud.begin(),point_cloud.end(), dim);
+  metric_information.initialize(point_cloud.begin(),point_cloud.end(), dim); // <<-- here's the problem
   
   //set rips parameter
   
@@ -219,9 +220,7 @@ List tomatoDens(NumericMatrix coords, NumericVector density, double r, double th
   for(int i=0; i < births.size(); i++) {
     diagram(i, 0) = births.at(i);
     diagram(i, 1) = deaths.at(i);
-  }
-  
-  
+  } 
   
   return List::create(Named("clusters") = clusters,
                       Named("diagram") = diagram);
