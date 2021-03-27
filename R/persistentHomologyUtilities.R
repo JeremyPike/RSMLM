@@ -31,15 +31,27 @@ findNumFeatures <- function(diag, dimension, threshold) {
   } else {
     numFeatures <- dim(diag)[1]
   }
+  
   if (numFeatures != 0) {
-    for (i in 1 : numFeatures) {
+    if (numFeatures > 1){
+      for (i in 1 : numFeatures) {
         # persistence is birth scale - death scale
-        featurePersistence <- diag[i, 3] - diag[i, 2]
+        featurePersistence <- diag[i,3] - diag[i,2]
         # if persitence above threshold add one to feature count
-        if (featurePersistence > threshold) {
+        if (featurePersistence > persistenceThreshold) {
           numFilteredFeatures <- numFilteredFeatures + 1
         }
+      }
     }
+    else{
+      # persistence is birth scale - death scale
+      featurePersistence <- diag[3]-diag[2]
+      # if persitence above threshold add one to feature count
+      if (featurePersistence > persistenceThreshold) {
+        numFilteredFeatures <- numFilteredFeatures + 1
+      }
+    }
+    
   }
   return(numFilteredFeatures)
 }
